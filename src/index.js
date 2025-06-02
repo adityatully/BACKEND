@@ -4,7 +4,6 @@ import { app } from "./app.js";
 dotenv.config({
     path : './.env'
 });
-
 // app.listen starts the server and listens for incoming requests
 connectDB()
 .then(()=>{
