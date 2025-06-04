@@ -6,6 +6,7 @@ import {ApiResponse} from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
 
+
 const registerUser = asyncHandler(async (req , res)=>{
     // get user detals from front end 
     // validation of the data we got 
@@ -67,9 +68,6 @@ const registerUser = asyncHandler(async (req , res)=>{
     return res.status(201).json(
         new ApiResponse(201, CreatedUser, "User registered successfully")
     )
-
-
-
 })
 
 const generateAccessandRefreshTokens = async(userId)=>{
@@ -184,15 +182,17 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         if(!user){
             throw new ApiError("Invalid refresh token", 401);
         }
-        if(user.RefreshToken !== Incomingtoken){
+        if(user?.RefreshToken !== Incomingtoken){
             throw new ApiError("Invalid refresh token", 401);
         }
-
+        
         const options = {
             httpOnly: true ,
             secure: true
         }
         const {newAccessToken, newRefreshToken} = await generateAccessandRefreshTokens(user._id);
+        user.RefreshToken = newRefreshToken;
+        await user.save({ validateBeforeSave: false });
         return res.status(200)
         .cookie("accessToken", newAccessToken, options)
         .cookie("refreshToken", newRefreshToken, options)
@@ -207,8 +207,243 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+const changeCurrentPassword = asyncHandler(async(req , res)=>{
+    // he can cnage pass mtlb logged in hai , agr logged in hai to middleware se crooss hua 
+    // agar middle ware cross hua hai to req mei req.user hoga always 
+    const{oldPassword , newPassword} = req.body;  
+    const user = await User.findById(req.user?._id);
+    const isPasswordValid = await user.comparePassword(oldPassword); 
 
-export {registerUser , loginUser , logoutUser , refreshAccessToken} ;
+    if(!isPasswordValid){
+        throw new ApiError("Invalid old password", 401);
+    }
+
+    user.password = newPassword;
+
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+        new ApiResponse(200, null, "Password changed successfully")
+    )
+
+})
+
+const getCurrentUser = asyncHandler(async (req , res)=>{
+    // req.user is added by the verifyJWT middleware agar logged in hai to req.user obj hoga 
+    return res.status(200).json(200 , req.user , "Current user fetched successfully")
+})
+
+const UpdateUser = asyncHandler(async(req , res)=>{ 
+
+    // logged in hai to user.req hoga 
+    const{fullname , username , email} = req.body; 
+
+    if(!fullname || !username || !email){
+        throw new ApiError("All fields are required", 400);
+    }   
+
+    const user = User.findByIdAndUpdate(req.user._id , {
+        $set :{
+            fullname , 
+            username : username.toLowerCase() , 
+            email
+        }
+    } , {new : true}).select("-password ");
+
+    return res.status(201).json(
+        new ApiResponse(201, user, "User updated successfully")
+    )
+
+
+})
+
+const UpdateUserAvatar = asyncHandler(async(req , res)=>{
+    // mutler se file upload hogi , into req.files
+    // then cloudinary m store hoi and we will get the response url
+    // user logged in hai to req.user obect zarur hoga
+    const avatarLocalPath = req.file?.path  // injected by th multer middleware
+    if(!avatarLocalPath){
+        throw new ApiError("Avatar image is required", 400);
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    if(!avatar.url){
+        throw new ApiError("Failed to upload cover image", 500);
+    }
+
+    const user = await User.findByIdAndUpdate(req.user_id , {
+        $set :{
+            avatar : avatar.url
+        }
+    } ,{new : true}).select("-password");
+
+    return res.status(201).json(
+        new ApiResponse(201, user, "User avatar updated successfully")
+    )
+
+})
+
+
+const UpdateUserCoverImage = asyncHandler(async(req , res)=>{
+    // mutler se file upload hogi , into req.files
+    // then cloudinary m store hoi and we will get the response url
+    // user logged in hai to req.user obect zarur hoga
+    const coverImageLocalPath = req.file?.path  // injected by th multer middleware
+    if(!coverImageLocalPath){
+        throw new ApiError("Avatar image is required", 400);
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    if(!coverImage.url){
+        throw new ApiError("Failed to upload cover image", 500);
+    }
+
+    const user = await User.findByIdAndUpdate(req.user_id , {
+        $set :{
+            coverImage : coverImage.url
+        }
+    } ,{new : true}).select("-password");
+
+    return res.status(201).json(
+        new ApiResponse(201, user, "User cover image updated successfully")
+    )
+
+})
+
+const getUserChannelProfile = asyncHandler(async(req , res)=>{
+    const {username} = req.params;
+ 
+    if(!username?.trim()){
+        throw new ApiError("Username is required", 400);
+    }
+    const channel = await User.aggregate([
+        {
+        $match : {
+            username : username.toLowerCase()
+        }}   ,
+
+        {
+            $lookup : {
+                from : "subscriptions",
+                localField : "_id",
+                foreignField : "channel",   // this gets the nuber of subscribers 
+                as : "subscribers"
+            }
+        } , 
+        {
+            $lookup : {
+                from : "subscriptions",
+                localField : "_id",
+                foreignField : "subscriber",   // this gets the nuber of subscribers 
+                as : "subscribed_to"
+            }
+        } , 
+        {
+            $addFields :{
+                subscribersCount : { $size: "$subscribers" },
+                subscribedToCount : { $size: "$subscribed_to" } , 
+                isSubscribed : {
+                    $cond : {
+                        if : {$in:[req.user?._id , "$subscribers.subscriber"]},
+                        then : true,
+                        else : false
+                    }
+                }
+            } 
+        }
+        , 
+        {
+            $project : {
+                fullname : 1,
+                username : 1,
+                avatar : 1,
+                coverImage : 1,
+                subscribersCount : 1,
+                subscribedToCount : 1,
+                isSubscribed : 1 ,
+                email : 1,
+            }
+        }
+    
+    ])
+
+    if(!channel?.length){
+        throw new ApiError("Channel not found", 404);
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, channel[0], "User channel profile fetched successfully")
+    )
+
+})
+
+
+const getWatchHistory = asyncHandler(async(req , res)=>{
+    const {username} = req.params ; 
+    if(!username?.trim()){
+        throw new ApiError("Username is required", 400);
+    }
+
+    const user = await User.aggregate([
+        {
+            $match : {
+                _id : new mongoose.Types.ObjectId(req.user._id),
+
+            }  
+            // we have the watch istory array nhow 
+        } , 
+
+        {
+            $lookup : {
+                from : "videos", // kis table ko oin 
+                localField : "watchHistory", // field in the user collection which contains the video ids
+                foreignField : "_id",
+                as : "watchHistoryVideos" ,
+                pipeline : [
+
+                    {
+                        $lookup :{
+                            from : "users" ,
+                            localField : "owner",
+                            foreignField : "_id",
+                            as : "owner" , 
+                            pipeline : [
+                                {
+                                    $project : {
+                                        fullname : 1,
+                                        username : 1,
+                                        avatar : 1
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                    , 
+
+                    {
+                        $addFields : {
+                            owner : {   // owner was an array of object , this makes it only one object 
+                                $first : "$owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+
+    return res.status(200).json(
+        new ApiResponse(200, user[0].watchHistoryVideos, "User watch history fetched successfully")
+    )
+
+    
+})
+
+
+
+export {registerUser , loginUser , logoutUser , refreshAccessToken ,  
+     changeCurrentPassword , getCurrentUser ,UpdateUser , UpdateUserAvatar , UpdateUserCoverImage ,
+     getUserChannelProfile , getWatchHistory} ;
 
 
 
@@ -247,3 +482,42 @@ export {registerUser , loginUser , logoutUser , refreshAccessToken} ;
 
 // refresh tokens are sent in body or are cookies
 // access token sent in cokies or api req headers 
+
+
+// agregate function returns an array of objects but we have atched with username so ek hi object milega
+// we can access channel[0].anything
+
+
+
+//{
+//    _id: ObjectId("user123"),
+//    username: "john_doe",
+//    fullname: "John Doe",
+//    avatar: "https://cdn.com/avatar/john.jpg",
+//    watchHistory: [ObjectId("video111"), ObjectId("video222")],
+//    watchHistoryVideos: [
+//      {
+//        _id: ObjectId("video111"),
+//        title: "MongoDB Tutorial",
+//        owner: {
+//          _id: ObjectId("user999"),
+//          username: "creator_mongo",
+//          fullname: "Mongo Man",
+//          avatar: "https://cdn.com/avatar/mongo.jpg"
+//        },
+//        ...
+//      },
+//      {
+//        _id: ObjectId("video222"),
+//        title: "React Basics",
+//        owner: {
+//          _id: ObjectId("user888"),
+//          username: "react_guru",
+//          fullname: "React Queen",
+//          avatar: "https://cdn.com/avatar/react.jpg"
+//        },
+//        ...
+//      }
+//    ]
+//  }
+  
