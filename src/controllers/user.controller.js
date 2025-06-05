@@ -27,6 +27,7 @@ const registerUser = asyncHandler(async (req , res)=>{
     const existingUser = await  User.findOne({
         $or: [{username} , {email}]
     })
+    // $or is used to check if either username or email exists
 
     if(existingUser){
         throw new ApiError("Username or Email already exists", 409);
@@ -146,8 +147,8 @@ const logoutUser = asyncHandler(async (req, res) => {
     await User.findOneAndUpdate(
         req.user._id,
         {
-            $set :{
-                RefreshToken : undefined
+            $unset :{
+                RefreshToken: 1 // this will remove the RefreshToken field from the user document
             }
         },{
             new : true 

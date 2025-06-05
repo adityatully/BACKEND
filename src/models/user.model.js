@@ -49,12 +49,14 @@ const userSchema = new mongoose.Schema({
 
 } ,{timestamps: true});
 
+// middleware befoe saving in the databse 
 userSchema.pre("save" ,  async function(next){
     if(!this.isModified("password")) next();
     this.password = await bcrypt.hash(this.password, 10);
     next()
 })
 
+// added methods for the user shcema 
 userSchema.methods.comparePassword = async function(password) {
     return await bcrypt.compare(password, this.password);
 }

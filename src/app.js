@@ -19,12 +19,26 @@ app.use(cookieParser()) // cred op on cookies
 app.use(express.static("public")) // static files ko serve karne ke liye assets 
 
  
-import userRouter from "./routes/user.routes.js"
+import userRouter from './routes/user.routes.js'
+import subscriptionRouter from "./routes/subscription.routes.js"
+import tweetRouter from "./routes/tweet.routes.js"
+
+
+
+
 // routes declaration  
 app.use("/api/v1/users" , userRouter)
 // yaha pe https://localhost:8000/api/v1/users
+app.use("/api/v1/subscriptions", subscriptionRouter)
+app.use("/api/v1/tweets", tweetRouter)
+
+
+
 
 export {app} 
 
 
 // not app.gt or smth app.use bcs router bahr se laarhe 
+
+
+

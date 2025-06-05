@@ -1,6 +1,7 @@
 import {Router} from 'express';
 import { loginUser, logoutUser, registerUser , refreshAccessToken ,  
-changeCurrentPassword , getCurrentUser ,UpdateUser , UpdateUserAvatar , UpdateUserCoverImage} from '../controllers/user.controller.js';
+changeCurrentPassword , getCurrentUser ,UpdateUser , UpdateUserAvatar , UpdateUserCoverImage,
+getUserChannelProfile , getWatchHistory} from '../controllers/user.controller.js';
 import {upload} from "../middlewares/multer.middleware.js"; 
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 
@@ -23,5 +24,14 @@ router.route("/update-user").patch(verifyJWT, UpdateUser);
 router.route("/update-avatar").patch(verifyJWT, upload.single('avatar'), UpdateUserAvatar);
 router.route("/update-cover-image").patch(verifyJWT, upload.single('coverImage'), UpdateUserCoverImage);
 
+
+// params se lere 
+router.route("/c/:username").get(verifyJWT, getUserChannelProfile); // get user by username
+router.route("/watch-history").get(verifyJWT, getWatchHistory); // get user's watch history
+
+
 export default router 
 
+
+
+// router.route("/update-user").patch(verifyJWT, UpdateUser); post m sab hojeyag update , use patch
