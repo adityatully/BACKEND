@@ -5,7 +5,8 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import { Tweet } from "../models/tweets.model.js";
-import mongoose from "mongoose";
+
+import mongoose, { isValidObjectId } from "mongoose"
 import { Subscription } from "../models/subscription.model.js";
 
 
@@ -14,7 +15,7 @@ const getUserChannelSubscribers = asyncHandler(async(req ,res )=>{
     // channel Id in the params 
     // we need all subscribers of the channel we can retun the subscriber id name etc
     const {channelId} = req.params 
-    if(!channelId){
+    if(!isValidObjectId(channelId)){
         throw new ApiError(404 , "No channel")
     }
     const subscribers = await Subscription.aggregate([
@@ -58,6 +59,9 @@ const getSubscribedChannels = asyncHandler(async(req , res)=>{
     // we will get a subscriberId and we have to give all subscribed channels for that id 
     // already loggen in 
     const {subscriberId} = req.params
+    if(!isValidObjectId(subscriberId)){
+        throw new ApiError(404 , "Not a valid subscriber ID")
+    }
     const channels = await Subscription.aggregate([
         {
             $match : {
@@ -100,6 +104,10 @@ const toggleSubscription = asyncHandler(async(req , res)=>{
 
     const subscriberId = req.user._id 
     const {channelId} = req.params 
+
+    if(!isValidObjectId(channelId)){
+        throw new ApiError(404 , "nOT A VALID CHANNEL ID")
+    }
 
     const isSubscribed  =  await Subscription.findOne({
         

@@ -5,7 +5,7 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import { Tweet } from "../models/tweets.model.js";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 
 const createTweet = asyncHandler(async(req , res)=>{
     // first to create a tweet , user shud be logged in 
@@ -63,6 +63,9 @@ const getUserTweets = asyncHandler(async(req , res)=>{
 
 const deleteTweet = asyncHandler(async(req , res)=>{
     // user will be alrady loggedn in j, we will get the twet it from the req.params 
+    if(!isValidObjectId(req.params.tweetId)){
+        throw new ApiError(404 , "Not a valid tweet ID")
+    }
     const tweetDeleted = await Tweet.deleteOne({
         _id : req.params.tweetId
     })
@@ -80,6 +83,9 @@ const updateTweet = asyncHandler(async(req , res)=>{
     // user logged in we hv req.user
     // tweet id from req.params 
     // content from the body 
+    if(!isValidObjectId(req.params.tweetId)){
+        throw new ApiError(404 , "Not a valid tweet id ")
+    }
     const {content} = req.body 
     if(!content){
         throw new ApiError(401 , "Pls enter the content ")
